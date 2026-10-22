@@ -332,6 +332,7 @@ a {{ color: var(--link); }} code {{ background: #efeee9; padding: 1px 5px; borde
 nav.toc {{ display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 20px 0 0; font-size: 14px; }}
 nav.toc a {{ text-decoration: none; }} nav.toc a:hover {{ text-decoration: underline; }}
 footer {{ margin-top: 48px; color: var(--muted); font-size: 13px; }}
+.ctitle {{ font-size: 14px; font-weight: 600; color: var(--ink); padding: 6px 8px 0; }}
 </style></head><body><main>
 <h1>Рынок жилья Парижа и ближнего пригорода, 2021–2024</h1>
 <p class="lead">Разведочный анализ {fmt(ov["n"])} нотариальных сделок из открытого реестра DVF: Париж и
@@ -348,7 +349,23 @@ footer {{ margin-top: 48px; color: var(--muted); font-size: 13px; }}
 {body}
 <footer>Данные: DGFiP, Demandes de valeurs foncières; геокодирование — Etalab; Licence Ouverte 2.0.
 Карта — © OpenStreetMap, © CARTO.</footer>
-</main></body></html>"""
+</main>
+<script>
+// Узкий экран: заголовок графика — HTML-строкой над ним (Plotly не переносит строки), легенда — под графиком.
+window.addEventListener("load", () => {{
+  if (window.innerWidth >= 640) return;
+  document.querySelectorAll(".chart .js-plotly-plot").forEach(g => {{
+    const t = g.layout && g.layout.title && g.layout.title.text;
+    if (t) {{ const d = document.createElement("div"); d.className = "ctitle"; d.textContent = t;
+             g.closest(".chart").prepend(d); }}
+    const upd = {{"title.text": "", "margin.t": 16}};
+    if (!g._fullLayout.map) Object.assign(upd, {{"legend.y": -0.32, "legend.yanchor": "top", "margin.b": 150,
+                                                  "margin.l": 48}});
+    Plotly.relayout(g, upd);
+  }});
+}});
+</script>
+</body></html>"""
     out = ROOT / "docs"
     out.mkdir(exist_ok=True)
     (out / "index.html").write_text(html, encoding="utf-8")
