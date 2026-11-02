@@ -49,7 +49,8 @@ def main() -> None:
                                                       "round", "season"))
     loc, arr, mix, sz = R["location"], R["arr"], R["mix"], R["size"]
     P, S = idx["summary"]["Париж"], idx["summary"]["пригород"]
-    rho_arr, p_arr = R["arr_rho"]
+    rho_arr, p_arr, rho_lo, rho_hi = R["arr_rho"]
+    ci_arr = f"{rho_lo:.2f}–{rho_hi:.2f}".replace(".", ",")
     grad = dn["gradient"].set_index(["zone", "year"])
     m = mix.set_index(["zone", "year"])
     szi = sz.set_index(["zone", "bin"])
@@ -84,7 +85,11 @@ def main() -> None:
         "volume_change_2024_vs_2021": vc, "volume_change_by_kind": kc,
         "commune_volume_price_spearman": [vol["rho"], vol["p"]],
         "suburb_vs_paris_gap": {"peak_q": dn["peak_q"], "peak": dn["peak"], "last": dn["last"]["gap"]},
-        "arr_level_change_spearman": [rho_arr, p_arr], "location_r2": loc,
+        "paris_vs_suburb_4_7km": {"pct": dn["border"][0], "lo": dn["border"][1], "hi": dn["border"][2],
+                                  "median_paris": dn["border_med"]["Париж"],
+                                  "median_suburb": dn["border_med"]["пригород"]},
+        "arr_level_change_spearman": [rho_arr, p_arr], "arr_level_change_spearman_ci": [rho_lo, rho_hi],
+        "location_r2": loc,
         "new_build_premium": {"raw": nb["raw"], "within_cell": list(nb["within"])},
         "olympics": {"effect": oly["effect"], "perm_p": oly["p"], "cluster_ci": list(oly["cluster"])},
         "round_prices": {"shares": rd["shares"], "excess_below_100k": rd["excess100"],
@@ -132,7 +137,7 @@ def main() -> None:
 {chart("change")}
 <p>В {pct(R["map"]["share_down"], 0, False)} ячеек медиана 2023–24 ниже, чем 2021–22. Но падали округа
 по-разному: <strong>чем дороже округ, тем меньше он потерял</strong> — ранговая корреляция уровня и изменения
-ρ = {rho_arr:.2f} ({pval(p_arr)}, 20 округов). Центр (4-й, 6-й: {pct(paris_arr.loc[4, "change"], 0)},
+ρ = {rho_arr:.2f} (95 % ДИ {ci_arr}; {pval(p_arr)}, 20 округов). Центр (4-й, 6-й: {pct(paris_arr.loc[4, "change"], 0)},
 {pct(paris_arr.loc[6, "change"], 0)}) почти устоял, северо-восток (18-й, 19-й:
 {pct(paris_arr.loc[18, "change"], 0)}, {pct(paris_arr.loc[19, "change"], 0)}) потерял больше всего.</p>
 {chart("arr2")}""".replace("ρ = 0.", "ρ = 0,"))

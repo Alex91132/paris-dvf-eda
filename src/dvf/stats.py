@@ -57,7 +57,8 @@ def design(df: pd.DataFrame, numeric: list[str] = (), dummies: dict[str, object]
     X = pd.DataFrame({c: df[c].astype(float).to_numpy() for c in numeric}, index=df.index)
     for col, base in (dummies or {}).items():
         d = pd.get_dummies(df[col], prefix=col, prefix_sep="=", dtype=float)
-        X = pd.concat([X, d.drop(columns=f"{col}={base}")], axis=1)
+        drop = [c for c in [f"{col}={base}"] if c in d.columns]   # базовой категории может не быть в маленьком срезе
+        X = pd.concat([X, d.drop(columns=drop)], axis=1)
     return X
 
 
@@ -120,8 +121,30 @@ def permutation_did(means: pd.DataFrame, counts: pd.DataFrame, treated: set, pre
     return float(obs), p, placebo
 
 
+def _spearman(x, y) -> float:
+    """ρ Спирмена через ранги: корреляция Пирсона от рангов, связи — средним рангом."""
+    xr = pd.Series(np.asarray(x, dtype=float)).rank().to_numpy()
+    yr = pd.Series(np.asarray(y, dtype=float)).rank().to_numpy()
+    return float(np.corrcoef(xr, yr)[0, 1])
+
+
+def boot_spearman_ci(x, y, n_boot: int = 2000, seed: int = 0) -> tuple[float, float]:
+    """95 % перцентильный бутстреп-интервал для ρ Спирмена по парам (единица — округ или коммуна).
+
+    На двадцати округах асимптотический p-value мало что значит, а интервал показывает,
+    насколько оценка держится на отдельных точках.
+    """
+    x, y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    n = len(x)
+    rng = np.random.default_rng(seed)
+    vals = np.array([_spearman(x[i], y[i]) for i in rng.integers(0, n, (n_boot, n))])
+    return (float(np.nanpercentile(vals, 2.5)), float(np.nanpercentile(vals, 97.5)))
+
+
 def side_ratio(price: np.ndarray, x: float, w: float = 10_000) -> tuple[float, int, int]:
     """log(число сделок в [x−w, x) / в (x, x+w]) — перевес «чуть ниже порога»; сам порог не считается."""
     below = int(((price >= x - w) & (price < x)).sum())
     above = int(((price > x) & (price <= x + w)).sum())
+    if below == 0 or above == 0:                    # у порога нет сделок с одной стороны — отношение не определено
+        return float("nan"), below, above
     return float(np.log(below / above)), below, above

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats
 
-from .stats import boot_median, cell_center, design, fe_ols, grid_cell, permutation_did, side_ratio
+from .stats import boot_median, boot_spearman_ci, cell_center, design, fe_ols, grid_cell, permutation_did, side_ratio
 
 SIZE_BINS = [9, 20, 30, 40, 60, 80, 120, 400]
 SIZE_LABELS = ["9–20", "20–30", "30–40", "40–60", "60–80", "80–120", "120+"]
@@ -226,6 +226,8 @@ def round_prices(s: pd.DataFrame) -> dict:
     shares = {k: float((pr % k == 0).mean()) for k in (1_000, 5_000, 10_000, 50_000, 100_000)}
     r100 = [(x, *side_ratio(pr, x)) for x in range(200_000, 1_000_001, 100_000)]
     r10 = [(x, *side_ratio(pr, x)) for x in range(150_000, 1_000_001, 10_000) if x % 50_000]
+    r100 = [t for t in r100 if np.isfinite(t[1])]   # порог без сделок с одной стороны в сравнение не идёт
+    r10 = [t for t in r10 if np.isfinite(t[1])]
     a, b = np.array([r[1] for r in r100]), np.array([r[1] for r in r10])
     u = stats.mannwhitneyu(a, b, alternative="greater")
     hist = pd.Series(pr[(pr >= 150_000) & (pr < 450_000)] // 1000 * 1000).value_counts().sort_index()
@@ -275,7 +277,9 @@ def run_all(s: pd.DataFrame) -> dict:
     s = prepare(s)
     arr = arrondissements(s)
     rho, p = stats.spearmanr(arr["med"], arr["change"])
-    return {"s": s, "overview": overview(s), "map": price_map(s), "arr": arr, "arr_rho": (float(rho), float(p)),
+    rho_lo, rho_hi = boot_spearman_ci(arr["med"], arr["change"])
+    return {"s": s, "overview": overview(s), "map": price_map(s), "arr": arr,
+            "arr_rho": (float(rho), float(p), rho_lo, rho_hi),
             "location": location_share(s), "index": hedonic_index(s), "mix": size_mix(s), "volumes": volumes(s),
             "donut": donut(s), "size": size_premium(s), "new": new_build_premium(s), "oly": olympics(s),
             "round": round_prices(s), "season": seasonality(s)}

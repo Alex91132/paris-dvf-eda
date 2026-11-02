@@ -4,7 +4,8 @@ import pandas as pd
 import pytest
 import statsmodels.formula.api as smf
 
-from dvf.stats import boot_median, cell_center, design, fe_ols, grid_cell, permutation_did, side_ratio
+from dvf.stats import (boot_median, boot_spearman_ci, cell_center, design, fe_ols, grid_cell,
+                       permutation_did, side_ratio, _spearman)
 
 
 @pytest.fixture(scope="module")
@@ -66,3 +67,30 @@ def test_grid_cell_roundtrip():
     clat, clon = cell_center(c)
     assert np.all(np.abs(clat - lat) < 0.3 / 111.2) and np.all(np.abs(clon - lon) < 0.3 / 73)
     assert grid_cell(lat + 1e-6, lon + 1e-6)[0] == c[0]
+
+
+def test_spearman_known_values_and_ties():
+    x = np.arange(20.0)
+    assert _spearman(x, 3 * x + 7) == pytest.approx(1.0)
+    assert _spearman(x, -x) == pytest.approx(-1.0)
+    y = x.copy()
+    y[9] = y[10] = 5.0                    # связь: ранг считается средним
+    assert 0.9 < _spearman(x, y) < 1.0
+
+
+def test_boot_spearman_ci_brackets_estimate():
+    rng = np.random.default_rng(4)
+    x = np.arange(20.0)
+    y = x + rng.normal(0, 3, 20)
+    lo, hi = boot_spearman_ci(x, y)
+    rho = _spearman(x, y)
+    assert lo <= rho <= hi
+    lo2, hi2 = boot_spearman_ci(x, -x)     # строго обратная связь
+    assert hi2 <= -0.99
+
+
+def test_guards_on_empty_side_and_missing_base():
+    lr, below, above = side_ratio(np.array([290_000.0, 295_000.0]), 300_000, 10_000)
+    assert np.isnan(lr) and above == 0 and below == 2
+    X = design(pd.DataFrame({"q": ["b"], "x": [1.0]}), ["x"], {"q": "a"})
+    assert list(X.columns) == ["x", "q=b"]
